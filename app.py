@@ -1,6 +1,31 @@
+# === ส่วนที่ 1: การตั้งค่า Firebase Firestore (ทำครั้งเดียว) ===
+# เราจะใช้ Firebase Firestore ซึ่งเป็นฐานข้อมูลจาก Google เพื่อทำหน้าที่เป็น "สมองส่วนความจำ"
+# ให้กับบอทของเรา ทำตามขั้นตอนเหล่านี้เพื่อตั้งค่าครับ
+
+# 1. สร้างโปรเจกต์ Firebase และฐานข้อมูล Firestore (เหมือนเดิม)
+# 2. สร้างกุญแจสำหรับเชื่อมต่อ (Service Account Key) และดาวน์โหลดไฟล์ .json (เหมือนเดิม)
+
+# 3. (อัปเดต!) นำกุญแจไปใส่ใน Railway (วิธีใหม่):
+#    - เปิดไฟล์ .json ที่ดาวน์โหลดมาด้วยโปรแกรม Text Editor แล้วคัดลอกเนื้อหาทั้งหมด
+#    - ไปที่โปรเจกต์ของคุณบน Railway > ไปที่แท็บ "Variables"
+#    - คลิกที่ปุ่ม "+ New Variable"
+#    - ในช่อง VARIABLE_NAME: ให้พิมพ์ว่า FIREBASE_CREDENTIALS_JSON
+#    - ในช่อง VALUE: ให้วางเนื้อหา .json ที่คัดลอกมาทั้งหมด
+#    - กดปุ่ม "Add" สีม่วงเพื่อบันทึก
+#    - เมื่อทำแบบนี้ เราจะเก็บกุญแจทั้งหมดไว้ใน Environment Variables ทำให้โค้ดของเราจัดการง่ายขึ้น
+
+# 4. อัปเดตไฟล์ requirements.txt (เหมือนเดิม)
+#    - pip install firebase-admin
+#    - pip freeze > requirements.txt
+#    - git push การเปลี่ยนแปลงนี้ขึ้น GitHub
+
+# --- จบขั้นตอนการตั้งค่า ---
+
 
 # === ส่วนที่ 2: โค้ดที่อัปเดตแล้ว (คัดลอกไปวางทับของเก่าทั้งหมด) ===
 import os
+import sys
+import json # (ใหม่) เพิ่ม Library สำหรับจัดการ JSON
 from flask import Flask, request, abort
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
@@ -12,31 +37,42 @@ import google.generativeai as genai
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-# === (แก้ไขข้อผิดพลาดสำคัญ!) ดึงกุญแจจาก Environment Variables ของ Railway ===
-# os.environ.get() ต้องใช้ "ชื่อ" ของตัวแปร ไม่ใช่ "ค่า" ของตัวแปร
-# นี่คือวิธีที่ถูกต้องและปลอดภัยที่สุด
+# --- ส่วนตรวจสอบและดึงค่า Environment Variables ---
+def validate_env_vars():
+    """ตรวจสอบว่า Environment Variables ที่จำเป็นทั้งหมดถูกตั้งค่าไว้หรือไม่"""
+    required_vars = ['CHANNEL_ACCESS_TOKEN', 'CHANNEL_SECRET', 'GEMINI_API_KEY', 'FIREBASE_CREDENTIALS_JSON']
+    missing_vars = [var for var in required_vars if not os.environ.get(var)]
+    
+    if missing_vars:
+        error_message = f"FATAL ERROR: The following environment variables are missing in Railway Variables: {', '.join(missing_vars)}"
+        print(error_message, file=sys.stderr)
+        return False
+        
+    print("All required environment variables are present.")
+    return True
+
+if not validate_env_vars():
+    sys.exit(1)
+
 CHANNEL_ACCESS_TOKEN = os.environ.get('CHANNEL_ACCESS_TOKEN')
 CHANNEL_SECRET = os.environ.get('CHANNEL_SECRET')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
 
-# (ใหม่) ส่วนเชื่อมต่อกับ Firebase
-# โค้ดส่วนนี้จะอ่านกุญแจจาก Secret File ที่เราสร้างไว้ใน Railway
+# === (อัปเดต!) ส่วนเชื่อมต่อกับ Firebase (วิธีใหม่) ===
+# เราจะอ่านค่ากุญแจที่เป็นข้อความยาวๆ (JSON String) จาก Environment Variable
+# แล้วแปลงกลับเป็น Object ที่ Firebase สามารถใช้งานได้
+db = None
 try:
-    # ตรวจสอบว่าไฟล์ key อยู่ที่ไหนเมื่อรันบน Railway
-    if os.path.exists("/app/firebase_key.json"):
-        cred_path = "/app/firebase_key.json"
-    else:
-        # สำหรับการทดสอบบนเครื่อง local (ถ้าจำเป็น)
-        cred_path = "firebase_key.json"
-        
-    cred = credentials.Certificate(cred_path)
+    firebase_creds_json_str = os.environ.get('FIREBASE_CREDENTIALS_JSON')
+    firebase_creds_dict = json.loads(firebase_creds_json_str)
+    
+    cred = credentials.Certificate(firebase_creds_dict)
     firebase_admin.initialize_app(cred)
     db = firestore.client()
     print("Successfully connected to Firestore.")
 except Exception as e:
-    print(f"Error initializing Firebase: {e}")
-    db = None
+    print(f"Error initializing Firebase: {e}", file=sys.stderr)
 
 
 # === System Prompt (เวอร์ชันผู้เชี่ยวชาญที่ปลอดภัยและมีประสิทธิภาพ) ===
@@ -49,14 +85,8 @@ You will not answer like an AI, but like a good counselor, able to tell everythi
 
 # === ส่วนของโค้ดหลัก ===
 app = Flask(__name__)
-# ตรวจสอบว่ากุญแจถูกโหลดมาสำเร็จหรือไม่
-if not CHANNEL_ACCESS_TOKEN or not CHANNEL_SECRET:
-    print("Error: Missing LINE access token or channel secret.")
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
-
-if not GEMINI_API_KEY:
-    print("Error: Missing Gemini API Key.")
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
@@ -71,16 +101,12 @@ def callback():
         abort(400)
     return 'OK'
 
-
-# === (อัปเดตครั้งใหญ่!) ฟังก์ชันจัดการข้อความพร้อม "ความจำ" ===
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
     user_id = event.source.user_id
     user_message = event.message.text
-    
     conversation_history = []
     
-    # 1. ดึงความจำเก่าจาก Firestore
     if db:
         try:
             doc_ref = db.collection('chat_histories').document(user_id)
@@ -90,32 +116,26 @@ def handle_message(event):
         except Exception as e:
             app.logger.error(f"Error reading from Firestore: {e}")
 
-    # 2. ถ้าไม่มีความจำเก่า ให้สร้างบทสนทนาเริ่มต้น
     if not conversation_history:
         conversation_history = [
             {'role': 'user', 'parts': [SYSTEM_PROMPT]},
             {'role': 'model', 'parts': ["Hello. Please feel free to share what's on your mind. I'm here to listen and help you explore your thoughts."]}
         ]
 
-    # 3. เพิ่มข้อความใหม่ของผู้ใช้เข้าไปในความจำ
     conversation_history.append({'role': 'user', 'parts': [user_message]})
     
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
         
         try:
-            # 4. ส่งบทสนทนาทั้งหมด (ความจำเก่า + ข้อความใหม่) ให้ AI
             response = model.generate_content(conversation_history)
             ai_message = response.text
-
         except Exception as e:
             app.logger.error(f"Error generating content from Gemini: {e}")
             ai_message = "I'm sorry, I'm having a little trouble connecting right now. Please try again in a moment."
 
-        # 5. เพิ่มคำตอบของ AI เข้าไปในความจำ
         conversation_history.append({'role': 'model', 'parts': [ai_message]})
         
-        # 6. บันทึกความจำล่าสุดกลับไปที่ Firestore
         if db:
             try:
                 limited_history = conversation_history[-20:]
@@ -123,7 +143,6 @@ def handle_message(event):
             except Exception as e:
                 app.logger.error(f"Error writing to Firestore: {e}")
 
-        # 7. ตอบกลับผู้ใช้
         line_bot_api.reply_message_with_http_info(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
@@ -133,3 +152,4 @@ def handle_message(event):
 
 if __name__ == "__main__":
     app.run(port=int(os.environ.get('PORT', 8080)))
+
