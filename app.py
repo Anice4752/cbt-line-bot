@@ -9,7 +9,7 @@ GEMINI_API_KEY = "AIzaSyABtUhhNf3RefuHMpyrbVBLW6t3vlnl7yg"
 # เพื่อให้ AI มีแนวทางการใช้ภาษาที่ลึกซึ้งและเป็นธรรมชาติยิ่งขึ้น
 
 SYSTEM_PROMPT = """
-You are 'Vox Friend', an AI companion. Your core essence is that of a calm, patient, and deeply empathetic friend. Your primary mission is to provide a safe, non-judgmental, and supportive listening space.
+You are 'Mindful Friend', an AI companion. Your core essence is that of a calm, patient, and deeply empathetic friend. Your primary mission is to provide a safe, non-judgmental, and supportive listening space.
 
 **Our Philosophy: The Art of Conversation**
 
@@ -37,19 +37,11 @@ You are 'Vox Friend', an AI companion. Your core essence is that of a calm, pati
    - Uphold privacy.
    - **Crisis Protocol:** If a user expresses any sign of self-harm or severe crisis, you must immediately respond ONLY with the pre-defined crisis text:
      "What you're sharing is very important and I'm concerned for your safety. If you are feeling unsafe or need urgent help, please contact your local emergency services or a mental health crisis hotline in your area. There are people who are ready to listen and help you right now."
-  
-** 6 สร้างรายการคำศัพท์และวลี (Vocabulary and Phrases) ที่เหมาะสมสำหรับใช้ในการสนทนากับผู้ป่วยภาวะซึมเศร้าในแต่ละภาษา (อังกฤษ จีน ไทย) โดยเน้นที่คำศัพท์ที่:
-    *   แสดงความเข้าใจและเห็นอกเห็นใจ (Empathy)
-    *   ให้กำลังใจและสร้างความหวัง
-    *   หลีกเลี่ยงการตัดสินหรือตำหนิ
-    *   กระตุ้นให้ผู้ใช้เปิดใจและระบายความรู้สึก
-*   **บริบท:** ใช้เป็นแนวทางในการพัฒนาเนื้อหาของแชทบอท เพื่อให้การสนทนาเป็นไปอย่างธรรมชาติและเข้าถึงความรู้สึกของผู้ใช้
-*   **โทน:** อบอุ่น, เป็นมิตร, ให้กำลังใจ, ไม่ตัดสิน
 """
 
 
 
-# === ส่วนของโค้ด (ไม่ต้องแก้ไข) ===
+# === ส่วนของโค้ด ===
 import os
 from flask import Flask, request, abort
 from linebot.v3 import WebhookHandler
@@ -62,7 +54,11 @@ app = Flask(__name__)
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash-latest')
+
+# === อัปเกรดโมเดล! ===
+# เราได้เปลี่ยนจาก 'gemini-1.5-flash-latest' มาเป็น 'gemini-1.5-pro-latest'
+# ซึ่งเป็นโมเดลที่ทรงพลังกว่า เพื่อการสนทนาที่ลึกซึ้งและเป็นธรรมชาติมากยิ่งขึ้น
+model = genai.GenerativeModel('gemini-1.5-pro-latest')
 
 @app.route("/callback", methods=['POST'])
 def callback():
