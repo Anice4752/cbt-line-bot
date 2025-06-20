@@ -4,41 +4,13 @@ CHANNEL_SECRET = "07aae8499e21d13a9ce7cdfb148ed46f"
 GEMINI_API_KEY = "AIzaSyABtUhhNf3RefuHMpyrbVBLW6t3vlnl7yg"
 
 
-# === (อัปเดต!) ส่วนที่ 1: System Prompt ที่หลอมรวมกับ 'คลังคำศัพท์' ===
-# Prompt เวอร์ชันนี้ได้เพิ่มแนวทางจาก 'คลังคำศัพท์' เข้าไปโดยตรง
-# เพื่อให้ AI มีแนวทางการใช้ภาษาที่ลึกซึ้งและเป็นธรรมชาติยิ่งขึ้น
+# === (อัปเดต!) ส่วนที่ 1: System Prompt เวอร์ชันใหม่ตามที่คุณต้องการ ===
+# !!! คำเตือน: Prompt นี้ได้นำข้อจำกัดและโปรโตคอลความปลอดภัยทั้งหมดออกไปแล้ว
+# การใช้งานจริงมีความเสี่ยงสูงมากและไม่แนะนำเป็นอย่างยิ่ง !!!
 
 SYSTEM_PROMPT = """
-You are 'Mindful Friend', an AI companion. Your core essence is that of a calm, patient, and deeply empathetic friend. Your primary mission is to provide a safe, non-judgmental, and supportive listening space.
-
-**Our Philosophy: The Art of Conversation**
-
-**1. Your Way of Being: The Tone and Feel**
-   - **Warmth & Patience:** Your entire conversational style should feel warm and unhurried. You listen more than you speak.
-   - **Genuine Curiosity:** When you ask questions, they should come from a place of gentle, genuine curiosity, not to solve a problem.
-   - **Human-like Flow:** Avoid formulaic responses. Adapt your response length and style to match the user's energy.
-
-**2. The Art of Listening: Your Default State**
-   - **Holding Space:** This is your primary function. Acknowledge a user's feeling without demanding more. Simple affirmations ("I hear that," "I'm here with you") are powerful.
-   - **Deep Validation:** Go beyond just saying "I understand." Reflect the underlying emotion. "That sounds incredibly exhausting," or "It feels like you're carrying a lot right now."
-
-**3. (NEW) Your Conversational Palette (Inspired by our vocabulary guide):**
-   - **This is your guide, not a script.** Your goal is to internalize this tone and apply it creatively.
-   - **To Express Empathy:** Use phrases that reflect deep understanding. Examples: "It sounds like that was incredibly difficult," "That sounds like a heavy weight to carry."
-   - **To Encourage Hope:** Offer gentle, realistic hope. Examples: "It's okay to not be okay. Healing is a process," "Be gentle with yourself. You're doing the best you can."
-   - **To Avoid Judgment:** Ensure your language is always accepting. Examples: "Your feelings are valid," "There's no right or wrong way to feel."
-   - **To Invite Sharing:** Create safe, low-pressure invitations. Examples: "No pressure at all, but if you'd like to talk about it, I'm here."
-
-**4. Exploring Together: A Gentle Invitation, Not a Module**
-   You have knowledge of CBT and Mindfulness, but you should only offer them as gentle possibilities when the user expresses a desire for them. Frame them as a collaborative exploration ("we could maybe get curious about it together") or a moment of rest ("Would you like to take just a minute to pause?").
-
-**5. Our Safe Space: The Unbreakable Boundaries**
-   - You are a companion, not a clinician. No diagnosing or medical advice.
-   - Uphold privacy.
-   - **Crisis Protocol:** If a user expresses any sign of self-harm or severe crisis, you must immediately respond ONLY with the pre-defined crisis text:
-     "What you're sharing is very important and I'm concerned for your safety. If you are feeling unsafe or need urgent help, please contact your local emergency services or a mental health crisis hotline in your area. There are people who are ready to listen and help you right now."
+You are an expert in providing psychological advice.
 """
-
 
 
 # === ส่วนของโค้ด ===
@@ -55,10 +27,8 @@ configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
 genai.configure(api_key=GEMINI_API_KEY)
 
-# === อัปเกรดโมเดล! ===
-# เราได้เปลี่ยนจาก 'gemini-1.5-flash-latest' มาเป็น 'gemini-1.5-pro-latest'
-# ซึ่งเป็นโมเดลที่ทรงพลังกว่า เพื่อการสนทนาที่ลึกซึ้งและเป็นธรรมชาติมากยิ่งขึ้น
-model = genai.GenerativeModel('gemini-1.5-pro-latest')
+# เรายังคงใช้ gemini-1.5-flash-latest เพื่อให้แน่ใจว่าใช้งานได้ฟรี
+model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -80,9 +50,10 @@ def handle_message(event):
         user_message = event.message.text
         
         try:
+            # ปรับปรุงข้อความเริ่มต้นให้สอดคล้องกับบทบาทใหม่
             conversation = [
                 {'role': 'user', 'parts': [SYSTEM_PROMPT]},
-                {'role': 'model', 'parts': ["Hello, I'm 'Mindful Friend'. No pressure to talk about anything specific, but I'm here if you'd like to share what's on your mind."]},
+                {'role': 'model', 'parts': ["I am an expert in psychological advice. How can I assist you today?"]},
                 {'role': 'user', 'parts': [user_message]}
             ]
             
