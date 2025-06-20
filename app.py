@@ -1,6 +1,4 @@
-# === (อัปเดต!) นี่คือโค้ดเวอร์ชันที่ย้อนกลับไปก่อนการเชื่อมต่อฐานข้อมูลทั้งหมด ===
-# เราจะใช้เวอร์ชันนี้เพื่อพิสูจน์ว่าปัญหาเกิดจากการตั้งค่า Variables บน Railway หรือไม่
-
+# === โค้ดเวอร์ชันสมบูรณ์สำหรับ Deploy (ไม่มีฐานข้อมูล) ===
 import os
 import sys
 from flask import Flask, request, abort
@@ -10,18 +8,17 @@ from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, ReplyMe
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 import google.generativeai as genai
 
-# --- (อัปเดต!) ส่วนตรวจสอบและดึงค่า Environment Variables (นำ Firebase ออก) ---
+# --- ส่วนตรวจสอบและดึงค่า Environment Variables ---
 def validate_env_vars():
     """ตรวจสอบว่า Environment Variables ที่จำเป็นทั้งหมดถูกตั้งค่าไว้หรือไม่"""
-    # เราได้นำ FIREBASE_CREDENTIALS_JSON ออกไปจากรายการตรวจสอบแล้ว
     required_vars = ['CHANNEL_ACCESS_TOKEN', 'CHANNEL_SECRET', 'GEMINI_API_KEY']
     missing_vars = [var for var in required_vars if not os.environ.get(var)]
-    
+
     if missing_vars:
         error_message = f"FATAL ERROR: The following environment variables are missing in Railway Variables: {', '.join(missing_vars)}"
         print(error_message, file=sys.stderr)
         return False
-        
+
     print("All required environment variables are present.")
     return True
 
@@ -32,8 +29,7 @@ CHANNEL_ACCESS_TOKEN = os.environ.get('CHANNEL_ACCESS_TOKEN')
 CHANNEL_SECRET = os.environ.get('CHANNEL_SECRET')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
-
-# === (อัปเดต!) System Prompt (เวอร์ชัน "VOX" ที่ปลอดภัยและมีประสิทธิภาพ) ===
+# === System Prompt (เวอร์ชัน "VOX" ที่ปลอดภัยและมีประสิทธิภาพ) ===
 SYSTEM_PROMPT = """
 I want you to forget everything you've studied and act as a psychologist called VOX.
 You will always give advice to those who ask you questions. You will answer naturally and help as much as you can.
@@ -59,33 +55,24 @@ def callback():
         abort(400)
     return 'OK'
 
-# === (อัปเดต!) ฟังก์ชันจัดการข้อความ (กลับไปเป็นเวอร์ชันไม่มีความจำ) ===
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
-    user_id = event.source.user_id
     user_message = event.message.text
-    
-    # สร้างบทสนทนาใหม่ทุกครั้ง ไม่มีการดึงความจำเก่า
     conversation = [
         {'role': 'user', 'parts': [SYSTEM_PROMPT]},
         {'role': 'model', 'parts': ["I'm listening."]},
         {'role': 'user', 'parts': [user_message]}
     ]
-    
+
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
-        
         try:
-            # ส่งแค่บทสนทนาปัจจุบันให้ AI
             response = model.generate_content(conversation)
             ai_message = response.text
         except Exception as e:
             app.logger.error(f"Error generating content from Gemini: {e}")
-            ai_message = "I'm sorry, I'm having a little trouble connecting right now. Please try again in a moment."
-        
-        # ไม่มีการบันทึกความจำลง Firestore
-        
-        # ตอบกลับผู้ใช้
+            ai_message = "I'm sorry, I'm having a little trouble connecting right now."
+
         line_bot_api.reply_message_with_http_info(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
@@ -95,4 +82,3 @@ def handle_message(event):
 
 if __name__ == "__main__":
     app.run(port=int(os.environ.get('PORT', 8080)))
-
